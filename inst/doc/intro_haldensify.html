@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Nima Hejazi and David Benkeser" />
+
+<meta name="date" content="2020-09-15" />
+
+<title>Highly Adaptive Lasso Conditional Density Estimation</title>
+
+
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css" data-origin="pandoc">
+a.sourceLine { display: inline-block; line-height: 1.25; }
+a.sourceLine { pointer-events: none; color: inherit; text-decoration: inherit; }
+a.sourceLine:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode { white-space: pre; position: relative; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+code.sourceCode { white-space: pre-wrap; }
+a.sourceLine { text-indent: -1em; padding-left: 1em; }
+}
+pre.numberSource a.sourceLine
+  { position: relative; left: -4em; }
+pre.numberSource a.sourceLine::before
+  { content: attr(title);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; pointer-events: all; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {  }
+@media screen {
+a.sourceLine::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    for (var j = 0; j < rules.length; j++) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Highly Adaptive Lasso Conditional Density Estimation</h1>
+<h4 class="author"><a href="https://nimahejazi.org">Nima Hejazi</a> and <a href="https://www.sph.emory.edu/faculty/profile/#!dbenkes">David Benkeser</a></h4>
+<h4 class="date">2020-09-15</h4>
+
+
+
+<div id="background-and-motivation" class="section level1">
+<h1>Background and Motivation</h1>
+<p>In causal inference problems, both classical estimators (e.g., based on inverse probability weighting) and doubly robust estimators (e.g., one-step estimation, targeted minimum loss estimation) require estimation of the propensity score, a nuisance parameter corresponding to the treatment mechanism. While exposures of interest may often be continuous-valued, most approaches opt to discretize the exposure so as to estimate effects based on categorical exposures – such a simplification is often done out of convenience, to avoid estimation of the <em>generalized propensity score</em> <span class="citation">(Hirano and Imbens 2004; Imai and Van Dyk 2004)</span>, which is a conditional density function. The <code>haldensify</code> package introduces a flexible approach for estimating such conditional density functions, using the highly adaptive lasso (HAL), a nonparametric regression function that has been proven to converge to a given target function(al) at <span class="math inline">\(n^{-1/3}\)</span>-rate under minimal conditions.</p>
+<p>Consider data generated by typical cohort sampling <span class="math inline">\(O = (W, A, Y)\)</span>, where <span class="math inline">\(W\)</span> is a vector of baseline covariates, A is a continuous-valued exposure, and <span class="math inline">\(Y\)</span> is an outcome of interest. Estimation of the generalized propensity score q_{0,A}$ corresponds to estimating the conditional density of <span class="math inline">\(A\)</span> given <span class="math inline">\(W = w\)</span>. A simple strategy for estimating this nuisance function is to assume a parametric working model and use parametric regression to generate suitable density estimates. For example, one could operate under the working assumption that <span class="math inline">\(A\)</span> given <span class="math inline">\(W\)</span> follows a Gaussian distribution with homoscedastic variance and mean <span class="math inline">\(\sum_{j=1}^p \beta_j \phi_j(W)\)</span>, where <span class="math inline">\(\phi = (\phi_j : j)\)</span> are user-selected basis functions and <span class="math inline">\(\beta = (\beta_j : j)\)</span> are unknown regression parameters. In this case, a density estimate would be generated by fitting a linear regression of <span class="math inline">\(A\)</span> on <span class="math inline">\(\phi(W)\)</span> to estimate the conditional mean of <span class="math inline">\(A\)</span> given <span class="math inline">\(W\)</span>, paired with an estimate of the variance of <span class="math inline">\(A\)</span>. Then, the estimated conditional density would be given by the density of a Gaussian distribution evaluated at these estimates. Unfortunately, most such approaches do not allow for flexible modeling of <span class="math inline">\(q_{0,A}\)</span>. This motivated our development of a novel and flexible procedure for constructing conditional density estimates <span class="math inline">\(q_{n,A}(a \mid w)\)</span> of <span class="math inline">\(A\)</span> given <span class="math inline">\(W = w\)</span> (possibly subject to observation-level weights), evaluated at <span class="math inline">\(a \in \mathcal{A}\)</span>.</p>
+</div>
+<div id="pooled-hazards-conditional-density-estimation" class="section level1">
+<h1>Pooled hazards conditional density estimation</h1>
+<p>As consistent estimation of the generalized propensity score is an integral part of constructing estimators of the causal effects of continuous-valued exposures, our conditional density estimator, built around the HAL regression function, may be quite useful in flexibly constructing such estimates. We note that proposals for the data adaptive estimation of such quantities are sparse in the literature (e.g., <span class="citation">Zhu, Coffman, and Ghosh (2015)</span>). Notably, <span class="citation">Dı́az and van der Laan (2011)</span> gave a proposal for constructing semiparametric estimators of such a target quantity based on exploiting the relationship between the hazard and density functions. Our proposal builds upon theirs in several key ways:</p>
+<ol style="list-style-type: decimal">
+<li>we adjust their algorithm so as to incorporate sample-level weights, necessary for making use of sample-level weights (e.g., inverse probability of censoring weighting); and</li>
+<li>we replace their use of an arbitrary classification model with the HAL regression function.</li>
+</ol>
+<p>While our first modification is general and may be applied to the estimation strategy of <span class="citation">Dı́az and van der Laan (2011)</span>, our latter contribution requires adjusting the penalization aspect of HAL regression models so as to respect the use of a loss function appropriate for density estimation on the hazard scale.</p>
+<p>To build an estimator of a conditional density, <span class="citation">Dı́az and van der Laan (2011)</span> considered discretizing the observed <span class="math inline">\(a \in A\)</span> based on a number of bins <span class="math inline">\(T\)</span> and a binning procedure (e.g., including the same number of points in each bin or forcing bins to be of the same length). We note that the choice of the tuning parameter <span class="math inline">\(T\)</span> corresponds roughly to the choice of bandwidth in classical kernel density estimation; this will be made clear upon further examination of the proposed algorithm. The data <span class="math inline">\(\{A, W\}\)</span> are reformatted such that the hazard of an observed value <span class="math inline">\(a \in A\)</span> falling in a given bin may be evaluated via standard classification techniques. In fact, this proposal may be viewed as a re-formulation of the classification problem into a corresponding set of hazard regressions: <span class="math display">\[\begin{align*}
+   \mathbb{P} (a \in [\alpha_{t-1}, \alpha_t) \mid W) =&amp; \mathbb{P} (a \in
+   [\alpha_{t-1}, \alpha_t) \mid A \geq \alpha_{t-1}, W) \times  \\ &amp;
+   \prod_{j = 1}^{t -1} \{1 - \mathbb{P} (a \in [\alpha_{j-1}, \alpha_j)
+   \mid A \geq \alpha_{j-1}, W) \},
+\end{align*}\]</span> where the probability that a value of <span class="math inline">\(a \in A\)</span> falls in a bin <span class="math inline">\([\alpha_{t-1}, \alpha_t)\)</span> may be directly estimated from a standard classification model. The likelihood of this model may be re-expressed in terms of the likelihood of a binary variable in a data set expressed through a repeated measures structure. Specifically, this re-formatting procedure is carried out by creating a data set in which any given observation <span class="math inline">\(A_i\)</span> appears (repeatedly) for as many intervals <span class="math inline">\([\alpha_{t-1}, \alpha_t)\)</span> that there are prior to the interval to which the observed <span class="math inline">\(a\)</span> belongs. A new binary outcome variable, indicating <span class="math inline">\(A_i \in [\alpha_{t-1}, \alpha_t)\)</span>, is recorded as part of this new data structure. With the re-formatted data, a pooled hazard regression, spanning the support of <span class="math inline">\(A\)</span> is then executed. Finally, the conditional density estimator <span class="math display">\[\begin{equation*}
+   q_{n, \alpha}(a \mid W) = \frac{\mathbb{P}(a \in [\alpha_{t-1}, \alpha_t)
+      \mid W)}{(\alpha_t - \alpha_{t-1})},
+\end{equation*}\]</span> for <span class="math inline">\(\alpha_{t-1} \leq a \le \alpha_t\)</span>, may be constructed. As part of this procedure, the hazard estimates are mapped to density estimates through rescaling of the estimates by the bin size (<span class="math inline">\(\alpha_t - \alpha_{t-1}\)</span>).</p>
+<p>In its original proposal, a key element of this procedure was the use of any arbitrary classification procedure for estimating <span class="math inline">\(\mathbb{P}(a \in [\alpha_{t-1}, \alpha_t) \mid W)\)</span>, facilitating the incorporation of flexible, data adaptive estimators. We alter this proposal in two ways,</p>
+<ol style="list-style-type: decimal">
+<li>replacing the arbitrary estimator of <span class="math inline">\(\mathbb{P}(a \in [\alpha_{t-1}, \alpha_t) \mid W)\)</span> with HAL regression, and</li>
+<li>accommodating the use of sample-level weights, making it possible for the resultant conditional density estimator to achieve a convergence rate with respect to a loss-based dissimilarity of <span class="math inline">\(n^{-1/3}\)</span> under only mild assumptions.</li>
+</ol>
+<p>Our procedure alters the HAL regression function to use a loss function tailored for estimation of the hazard, invoking <span class="math inline">\(\ell_1\)</span>-penalization in a manner consistent with this loss.</p>
+</div>
+<div id="example" class="section level1">
+<h1>Example</h1>
+<p>First, let’s load a few required packages and set a seed for our example.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" title="1"><span class="kw">library</span>(ggplot2)</a>
+<a class="sourceLine" id="cb1-2" title="2"><span class="kw">library</span>(data.table)</a>
+<a class="sourceLine" id="cb1-3" title="3"><span class="kw">library</span>(haldensify)</a>
+<a class="sourceLine" id="cb1-4" title="4"><span class="kw">set.seed</span>(<span class="dv">75681</span>)</a></code></pre></div>
+<p>Next, we’ll generate a simple simulated dataset. The function <code>make_example_data</code>, defined below, generates a baseline covariate <span class="math inline">\(W\)</span> and a continuous-valued exposure variable <span class="math inline">\(A\)</span>, whose mean is a function of <span class="math inline">\(W\)</span>.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb2-1" title="1">make_example_data &lt;-<span class="st"> </span><span class="cf">function</span>(n_obs) {</a>
+<a class="sourceLine" id="cb2-2" title="2">  W &lt;-<span class="st"> </span><span class="kw">runif</span>(n_obs, <span class="dv">-4</span>, <span class="dv">4</span>)</a>
+<a class="sourceLine" id="cb2-3" title="3">  A &lt;-<span class="st"> </span><span class="kw">rnorm</span>(n_obs, <span class="dt">mean =</span> W, <span class="dt">sd =</span> <span class="fl">0.25</span>)</a>
+<a class="sourceLine" id="cb2-4" title="4">  dat &lt;-<span class="st"> </span><span class="kw">as.data.table</span>(<span class="kw">list</span>(<span class="dt">A =</span> A, <span class="dt">W =</span> W))</a>
+<a class="sourceLine" id="cb2-5" title="5">  <span class="kw">return</span>(dat)</a>
+<a class="sourceLine" id="cb2-6" title="6">}</a></code></pre></div>
+<p>Now, let’s simulate our data and take a quick look at it:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" title="1"><span class="co"># number of observations in our simulated dataset</span></a>
+<a class="sourceLine" id="cb3-2" title="2">n_obs &lt;-<span class="st"> </span><span class="dv">200</span></a>
+<a class="sourceLine" id="cb3-3" title="3">example_data &lt;-<span class="st"> </span><span class="kw">make_example_data</span>(n_obs)</a>
+<a class="sourceLine" id="cb3-4" title="4"></a>
+<a class="sourceLine" id="cb3-5" title="5"><span class="co"># quick look at the data</span></a>
+<a class="sourceLine" id="cb3-6" title="6"><span class="kw">head</span>(example_data)</a></code></pre></div>
+<pre><code>##             A           W
+## 1:  2.3063922  2.24687273
+## 2:  0.9297479  0.91025531
+## 3: -3.2443382 -2.98696024
+## 4: -0.1842217 -0.01204378
+## 5:  3.2756387  3.59166824
+## 6: -2.9132139 -3.02363838</code></pre>
+<p>Next, we’ll fit our pooled hazards conditional density estimator via the <code>haldensify</code> wrapper function. Based on underlying theory and simulation experiments, we recommend setting a relatively large number of bins and using a binning strategy that accommodates creating such a large number of bins.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" title="1">density_hal &lt;-<span class="st"> </span><span class="kw">haldensify</span>(</a>
+<a class="sourceLine" id="cb5-2" title="2">  <span class="dt">A =</span> example_data<span class="op">$</span>A,</a>
+<a class="sourceLine" id="cb5-3" title="3">  <span class="dt">W =</span> example_data<span class="op">$</span>W,</a>
+<a class="sourceLine" id="cb5-4" title="4">  <span class="dt">n_bins =</span> <span class="kw">c</span>(<span class="dv">5</span>, <span class="dv">15</span>),</a>
+<a class="sourceLine" id="cb5-5" title="5">  <span class="dt">grid_type =</span> <span class="st">&quot;equal_range&quot;</span>,</a>
+<a class="sourceLine" id="cb5-6" title="6">  <span class="dt">lambda_seq =</span> <span class="kw">exp</span>(<span class="kw">seq</span>(<span class="op">-</span><span class="dv">1</span>, <span class="dv">-10</span>, <span class="dt">length =</span> <span class="dv">100</span>))</a>
+<a class="sourceLine" id="cb5-7" title="7">)</a></code></pre></div>
+<p>Having constructed the conditional density estimator, we can examine the empirical risk over the grid of L1 regularization parameters. To do this, we can use the cross-validated conditional density fits returned in the <code>cv_hal_fits_tune_opt</code> slot of the <code>haldensify</code> object. For example, we can plot these as follows</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb6-1" title="1">emp_risk_dat &lt;-<span class="st"> </span><span class="kw">as.data.table</span>(<span class="kw">list</span>(</a>
+<a class="sourceLine" id="cb6-2" title="2">  <span class="dt">lambda =</span> density_hal<span class="op">$</span>cv_hal_fits_tune_opt<span class="op">$</span>lambda_seq,</a>
+<a class="sourceLine" id="cb6-3" title="3">  <span class="dt">risk =</span> density_hal<span class="op">$</span>cv_hal_fits_tune_opt<span class="op">$</span>emp_risks</a>
+<a class="sourceLine" id="cb6-4" title="4">))</a>
+<a class="sourceLine" id="cb6-5" title="5">p_risk &lt;-<span class="st"> </span><span class="kw">ggplot</span>(emp_risk_dat, <span class="kw">aes</span>(<span class="dt">x =</span> lambda, <span class="dt">y =</span> risk)) <span class="op">+</span></a>
+<a class="sourceLine" id="cb6-6" title="6"><span class="st">  </span><span class="kw">geom_point</span>() <span class="op">+</span></a>
+<a class="sourceLine" id="cb6-7" title="7"><span class="st">  </span><span class="kw">geom_line</span>() <span class="op">+</span></a>
+<a class="sourceLine" id="cb6-8" title="8"><span class="st">  </span><span class="kw">theme_bw</span>() <span class="op">+</span></a>
+<a class="sourceLine" id="cb6-9" title="9"><span class="st">  </span><span class="kw">xlab</span>(<span class="st">&quot;Lambda (L1 regularization parameter)&quot;</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb6-10" title="10"><span class="st">  </span><span class="kw">ylab</span>(<span class="st">&quot;Empirical Risk&quot;</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb6-11" title="11"><span class="st">  </span><span class="kw">ggtitle</span>(<span class="st">&quot;Empirical risk of HAL conditional density estimators&quot;</span>)</a>
+<a class="sourceLine" id="cb6-12" title="12">p_risk</a></code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<p>Finally, we can predict the conditional density over the grid of observed values <span class="math inline">\(A\)</span> across different elements of the support <span class="math inline">\(W\)</span>. We do this using the <code>predict</code> method of <code>haldensify</code> and plot the results below.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb7-1" title="1"><span class="co"># predictions to recover conditional density of A|W</span></a>
+<a class="sourceLine" id="cb7-2" title="2">new_a &lt;-<span class="st"> </span><span class="kw">seq</span>(<span class="op">-</span><span class="dv">4</span>, <span class="dv">4</span>, <span class="dt">by =</span> <span class="fl">0.01</span>)</a>
+<a class="sourceLine" id="cb7-3" title="3">new_dat &lt;-<span class="st"> </span><span class="kw">as.data.table</span>(<span class="kw">list</span>(<span class="dt">a =</span> new_a,</a>
+<a class="sourceLine" id="cb7-4" title="4">                              <span class="dt">w_neg =</span> <span class="kw">rep</span>(<span class="op">-</span><span class="dv">2</span>, <span class="kw">length</span>(new_a)),</a>
+<a class="sourceLine" id="cb7-5" title="5">                              <span class="dt">w_zero =</span> <span class="kw">rep</span>(<span class="dv">0</span>, <span class="kw">length</span>(new_a)),</a>
+<a class="sourceLine" id="cb7-6" title="6">                              <span class="dt">w_pos =</span> <span class="kw">rep</span>(<span class="dv">2</span>, <span class="kw">length</span>(new_a))))</a>
+<a class="sourceLine" id="cb7-7" title="7">new_dat[, pred_w_neg <span class="op">:</span><span class="er">=</span><span class="st"> </span><span class="kw">predict</span>(density_hal, <span class="dt">new_A =</span> new_dat<span class="op">$</span>a,</a>
+<a class="sourceLine" id="cb7-8" title="8">                                <span class="dt">new_W =</span> new_dat<span class="op">$</span>w_neg)]</a>
+<a class="sourceLine" id="cb7-9" title="9">new_dat[, pred_w_zero <span class="op">:</span><span class="er">=</span><span class="st"> </span><span class="kw">predict</span>(density_hal, <span class="dt">new_A =</span> new_dat<span class="op">$</span>a,</a>
+<a class="sourceLine" id="cb7-10" title="10">                                 <span class="dt">new_W =</span> new_dat<span class="op">$</span>w_zero)]</a>
+<a class="sourceLine" id="cb7-11" title="11">new_dat[, pred_w_pos <span class="op">:</span><span class="er">=</span><span class="st"> </span><span class="kw">predict</span>(density_hal, <span class="dt">new_A =</span> new_dat<span class="op">$</span>a,</a>
+<a class="sourceLine" id="cb7-12" title="12">                                <span class="dt">new_W =</span> new_dat<span class="op">$</span>w_pos)]</a>
+<a class="sourceLine" id="cb7-13" title="13"></a>
+<a class="sourceLine" id="cb7-14" title="14"><span class="co"># visualize results</span></a>
+<a class="sourceLine" id="cb7-15" title="15">dens_dat &lt;-<span class="st">  </span><span class="kw">melt</span>(new_dat, <span class="dt">id =</span> <span class="kw">c</span>(<span class="st">&quot;a&quot;</span>),</a>
+<a class="sourceLine" id="cb7-16" title="16">                  <span class="dt">measure.vars =</span> <span class="kw">c</span>(<span class="st">&quot;pred_w_pos&quot;</span>, <span class="st">&quot;pred_w_zero&quot;</span>, <span class="st">&quot;pred_w_neg&quot;</span>))</a>
+<a class="sourceLine" id="cb7-17" title="17">p_dens &lt;-<span class="st"> </span><span class="kw">ggplot</span>(dens_dat, <span class="kw">aes</span>(<span class="dt">x =</span> a, <span class="dt">y =</span> value, <span class="dt">colour =</span> variable)) <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-18" title="18"><span class="st">  </span><span class="kw">geom_point</span>() <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-19" title="19"><span class="st">  </span><span class="kw">geom_line</span>() <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-20" title="20"><span class="st">  </span><span class="kw">stat_function</span>(<span class="dt">fun =</span> dnorm, <span class="dt">args =</span> <span class="kw">list</span>(<span class="dt">mean =</span> <span class="dv">-2</span>, <span class="dt">sd =</span> <span class="fl">0.5</span>),</a>
+<a class="sourceLine" id="cb7-21" title="21">                <span class="dt">colour =</span> <span class="st">&quot;blue&quot;</span>, <span class="dt">linetype =</span> <span class="st">&quot;dashed&quot;</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-22" title="22"><span class="st">  </span><span class="kw">stat_function</span>(<span class="dt">fun =</span> dnorm, <span class="dt">args =</span> <span class="kw">list</span>(<span class="dt">mean =</span> <span class="dv">0</span>, <span class="dt">sd =</span> <span class="fl">0.5</span>),</a>
+<a class="sourceLine" id="cb7-23" title="23">                <span class="dt">colour =</span> <span class="st">&quot;darkgreen&quot;</span>, <span class="dt">linetype =</span> <span class="st">&quot;dashed&quot;</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-24" title="24"><span class="st">  </span><span class="kw">stat_function</span>(<span class="dt">fun =</span> dnorm, <span class="dt">args =</span> <span class="kw">list</span>(<span class="dt">mean =</span> <span class="dv">2</span>, <span class="dt">sd =</span> <span class="fl">0.5</span>),</a>
+<a class="sourceLine" id="cb7-25" title="25">                <span class="dt">colour =</span> <span class="st">&quot;red&quot;</span>, <span class="dt">linetype =</span> <span class="st">&quot;dashed&quot;</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-26" title="26"><span class="st">  </span><span class="kw">xlab</span>(<span class="st">&quot;Observed value&quot;</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-27" title="27"><span class="st">  </span><span class="kw">ylab</span>(<span class="st">&quot;Predicted probability&quot;</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-28" title="28"><span class="st">  </span><span class="kw">ggtitle</span>(<span class="st">&quot;Conditional density p(A|W)&quot;</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-29" title="29"><span class="st">  </span><span class="kw">theme_bw</span>() <span class="op">+</span></a>
+<a class="sourceLine" id="cb7-30" title="30"><span class="st">  </span><span class="kw">theme</span>(<span class="dt">legend.position =</span> <span class="st">&quot;none&quot;</span>)</a>
+<a class="sourceLine" id="cb7-31" title="31">p_dens</a></code></pre></div>
+<p><img src="data:image/png;base64,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" /><!-- --></p>
+<div id="references" class="section level2 unnumbered">
+<h2>References</h2>
+<div id="refs" class="references">
+<div id="ref-diaz2011super">
+<p>Dı́az, Iván, and Mark J van der Laan. 2011. “Super Learner Based Conditional Density Estimation with Application to Marginal Structural Models.” <em>The International Journal of Biostatistics</em> 7 (1): 1–20.</p>
+</div>
+<div id="ref-hirano2004propensity">
+<p>Hirano, Keisuke, and Guido W Imbens. 2004. “The Propensity Score with Continuous Treatments.” <em>Applied Bayesian Modeling and Causal Inference from Incomplete-Data Perspectives</em> 226164: 73–84.</p>
+</div>
+<div id="ref-imai2004causal">
+<p>Imai, Kosuke, and David A Van Dyk. 2004. “Causal Inference with General Treatment Regimes: Generalizing the Propensity Score.” <em>Journal of the American Statistical Association</em> 99 (467): 854–66.</p>
+</div>
+<div id="ref-zhu2015boosting">
+<p>Zhu, Yeying, Donna L Coffman, and Debashis Ghosh. 2015. “A Boosting Algorithm for Estimating Generalized Propensity Scores with Continuous Treatments.” <em>Journal of Causal Inference</em> 3 (1): 25–40.</p>
+</div>
+</div>
+</div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
