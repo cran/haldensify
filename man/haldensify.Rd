@@ -2,17 +2,19 @@
 % Please edit documentation in R/haldensify.R
 \name{haldensify}
 \alias{haldensify}
-\title{Cross-validated conditional density estimation with HAL}
+\title{Cross-validated HAL Conditional Density Estimation}
 \usage{
 haldensify(
   A,
   W,
   wts = rep(1, length(A)),
   grid_type = "equal_range",
-  n_bins = c(10, 25),
-  cv_folds = 5,
-  lambda_seq = exp(seq(-1, -13, length = 1000)),
-  use_future = FALSE
+  n_bins = round(c(0.5, 1, 1.5, 2) * sqrt(length(A))),
+  cv_folds = 5L,
+  lambda_seq = exp(seq(-1, -13, length = 1000L)),
+  smoothness_orders = 0L,
+  hal_basis_list = NULL,
+  ...
 )
 }
 \arguments{
@@ -20,7 +22,8 @@ haldensify(
 
 \item{W}{A \code{data.frame}, \code{matrix}, or similar giving the values of
 baseline covariates (potential confounders) for the observed units. These
-make up the conditioning set for the conditional density estimate.}
+make up the conditioning set for the density estimate. For estimation of a
+marginal density, specify a constant \code{numeric} vector or \code{NULL}.}
 
 \item{wts}{A \code{numeric} vector of observation-level weights. The default
 is to weight all observations equally.}
@@ -38,21 +41,34 @@ cross-validation will be used to select the optimal binning strategy.}
 
 \item{n_bins}{This \code{numeric} value indicates the number(s) of bins into
 which the support of \code{A} is to be divided. As with \code{grid_type},
-multiple values may be specified, in which case a cross-validation selector
-will be used to choose the optimal number of bins. In fact, the default
-uses a cross-validation selector to choose between 10 and 25 bins.}
+multiple values may be specified, in which case cross-validation will be
+used to choose the optimal number of bins. The default sets the candidate
+choices of the number of bins based on heuristics tested in simulation.}
 
 \item{cv_folds}{A \code{numeric} indicating the number of cross-validation
 folds to be used in fitting the sequence of HAL conditional density models.}
 
 \item{lambda_seq}{A \code{numeric} sequence of values of the regularization
-parameter of Lasso regression; passed to \code{\link[hal9001]{fit_hal}}.}
+parameter of Lasso regression; passed to \code{\link[hal9001]{fit_hal}} via
+its argument \code{lambda}, itself passed to \code{\link[glmnet]{glmnet}}.}
 
-\item{use_future}{A \code{logical} indicating whether to attempt to use
-parallelization based on \pkg{future} and \pkg{future.apply}. If set to
-\code{TRUE}, \code{\link[future.apply]{future_mapply}} will be used in
-place of \code{mapply}. When set to \code{TRUE}, a parallelization scheme
-must be specified externally by a call to \code{\link[future]{plan}}.}
+\item{smoothness_orders}{A \code{integer} indicating the smoothness of the
+HAL basis functions; passed to \code{\link[hal9001]{fit_hal}}. The default
+is set to zero, for indicator basis functions.}
+
+\item{hal_basis_list}{A \code{list} consisting of a preconstructed set of
+HAL basis functions, as produced by \code{\link[hal9001]{fit_hal}}. The
+default of \code{NULL} results in creating such a set of basis functions.
+When specified, this is passed directly to the HAL model fitted upon the
+augmented (repeated measures) data structure, resulting in a much lowered
+computational cost. This is useful, for example, in fitting HAL conditional
+density estimates with external cross-validation or bootstrap samples.}
+
+\item{...}{Additional (optional) arguments of \code{\link[hal9001]{fit_hal}}
+that may be used to control fitting of the HAL regression model. Possible
+choices include \code{use_min}, \code{reduce_basis}, \code{return_lasso},
+and \code{return_x_basis}, but this list is not exhaustive. Consult the
+documentation of \code{\link[hal9001]{fit_hal}} for complete details.}
 }
 \value{
 Object of class \code{haldensify}, containing a fitted
@@ -63,7 +79,7 @@ Object of class \code{haldensify}, containing a fitted
  the range of \code{A}.
 }
 \description{
-Cross-validated conditional density estimation with HAL
+Cross-validated HAL Conditional Density Estimation
 }
 \details{
 Estimation of the conditional density A|W through using the highly
@@ -72,14 +88,22 @@ Estimation of the conditional density A|W through using the highly
  value of the penalization parameters, based on minimization of the weighted
  log-likelihood loss for a density.
 }
+\note{
+Parallel evaluation of the cross-validation procedure to select tuning
+ parameters for density estimation may be invoked via the framework exposed
+ in the \pkg{future} ecosystem. Specifically, set \code{\link[future]{plan}}
+ for \code{\link[future.apply]{future_mapply}} to be used internally.
+}
 \examples{
 # simulate data: W ~ U[-4, 4] and A|W ~ N(mu = W, sd = 0.5)
+set.seed(429153)
 n_train <- 50
 w <- runif(n_train, -4, 4)
 a <- rnorm(n_train, w, 0.5)
 # learn relationship A|W using HAL-based density estimation procedure
-mod_haldensify <- haldensify(
-  A = a, W = w, n_bins = 3,
-  lambda_seq = exp(seq(-1, -10, length = 50))
+haldensify_fit <- haldensify(
+  A = a, W = w, n_bins = 10L, lambda_seq = exp(seq(-1, -10, length = 100)),
+  # the following arguments are passed to hal9001::fit_hal()
+  max_degree = 3, reduce_basis = 1 / sqrt(length(a))
 )
 }

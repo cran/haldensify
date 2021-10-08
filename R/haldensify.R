@@ -1,6 +1,6 @@
 utils::globalVariables(c("in_bin", "bin_id"))
 
-#' Conditional density estimation with HAL in a single cross-validation fold
+#' HAL Conditional Density Estimation in a Cross-validation Fold
 #'
 #' @details Estimates the conditional density of A|W for a subset of the full
 #'  set of observations based on the inputted structure of the cross-validation
@@ -16,9 +16,16 @@ utils::globalVariables(c("in_bin", "bin_id"))
 #' @param wts A \code{numeric} vector of observation-level weights, matching in
 #'  its length the number of records present in the long format data. Default
 #'  is to weight all observations equally.
-#' @param lambda_seq A \code{numeric} sequence of values of the tuning
-#'  parameter of the Lasso L1 regression passed to
-#'  \code{\link[hal9001]{fit_hal}}.
+#' @param lambda_seq A \code{numeric} sequence of values of the regularization
+#'  parameter of Lasso regression; passed to \code{\link[hal9001]{fit_hal}}.
+#' @param smoothness_orders A \code{integer} indicating the smoothness of the
+#'  HAL basis functions; passed to \code{\link[hal9001]{fit_hal}}. The default
+#'  is set to zero, for indicator basis functions.
+#' @param ... Additional (optional) arguments of \code{\link[hal9001]{fit_hal}}
+#'  that may be used to control fitting of the HAL regression model. Possible
+#'  choices include \code{use_min}, \code{reduce_basis}, \code{return_lasso},
+#'  and \code{return_x_basis}, but this list is not exhaustive. Consult the
+#'  documentation of \code{\link[hal9001]{fit_hal}} for complete details.
 #'
 #' @importFrom stats aggregate plogis
 #' @importFrom origami training validation fold_index
@@ -29,8 +36,12 @@ utils::globalVariables(c("in_bin", "bin_id"))
 #' @return A \code{list}, containing density predictions, observations IDs,
 #'  observation-level weights, and cross-validation indices for conditional
 #'  density estimation on a single fold of the overall data.
-cv_haldensify <- function(fold, long_data, wts = rep(1, nrow(long_data)),
-                          lambda_seq = exp(seq(-1, -13, length = 100))) {
+cv_haldensify <- function(fold,
+                          long_data,
+                          wts = rep(1, nrow(long_data)),
+                          lambda_seq = exp(seq(-1, -13, length = 1000L)),
+                          smoothness_orders = 0L,
+                          ...) {
   # make training and validation folds
   train_set <- origami::training(long_data)
   valid_set <- origami::validation(long_data)
@@ -41,22 +52,23 @@ cv_haldensify <- function(fold, long_data, wts = rep(1, nrow(long_data)),
 
   # fit a HAL regression on the training set
   # NOTE: not selecting lambda by CV so no need to pass IDs for fold splitting
-  hal_fit_train <- hal9001::fit_hal(
-    X = as.matrix(train_set[, -c(1, 2)]),
-    Y = as.numeric(train_set$in_bin),
-    max_degree = NULL,
-    fit_type = "glmnet",
-    family = "binomial",
-    lambda = lambda_seq,
-    cv_select = FALSE,
-    standardize = FALSE, # pass to glmnet
-    weights = wts_train, # pass to glmnet
-    yolo = FALSE
-  )
+  fit_hal_args <- list(...)
+  if (!any(grepl("fit_control", names(fit_hal_args)))) {
+    fit_hal_args$fit_control <- list(cv_select = FALSE, weights = wts_train)
+  } else {
+    fit_hal_args$fit_control$cv_select <- FALSE
+    fit_hal_args$fit_control$weights <- wts_train
+  }
+  fit_hal_args$X <- as.matrix(train_set[, -c(1, 2)])
+  fit_hal_args$Y <- as.numeric(train_set$in_bin)
+  fit_hal_args$family <- "binomial"
+  fit_hal_args$lambda <- lambda_seq
+  fit_hal_args$smoothness_orders <- smoothness_orders
+  hal_fit_train <- do.call(hal9001::fit_hal, fit_hal_args)
 
   # get intercept and coefficient fits for this value of lambda from glmnet
-  alpha_hat <- hal_fit_train$glmnet_lasso$a0
-  betas_hat <- hal_fit_train$glmnet_lasso$beta
+  alpha_hat <- hal_fit_train$lasso_fit$a0
+  betas_hat <- hal_fit_train$lasso_fit$beta
   coefs_hat <- rbind(alpha_hat, betas_hat)
 
   # make design matrix for validation set manually
@@ -85,6 +97,7 @@ cv_haldensify <- function(fold, long_data, wts = rep(1, nrow(long_data)),
     density_pred_this_obs <-
       map_hazard_to_density(hazard_pred_single_obs = hazard_pred_this_obs)
 
+    # output estimated density for the given observation
     return(density_pred_this_obs)
   })
 
@@ -110,7 +123,7 @@ cv_haldensify <- function(fold, long_data, wts = rep(1, nrow(long_data)),
 
 ###############################################################################
 
-#' Cross-validated conditional density estimation with HAL
+#' Cross-validated HAL Conditional Density Estimation
 #'
 #' @details Estimation of the conditional density A|W through using the highly
 #'  adaptive lasso to estimate the conditional hazard of failure in a given
@@ -121,7 +134,8 @@ cv_haldensify <- function(fold, long_data, wts = rep(1, nrow(long_data)),
 #' @param A The \code{numeric} vector observed values.
 #' @param W A \code{data.frame}, \code{matrix}, or similar giving the values of
 #'  baseline covariates (potential confounders) for the observed units. These
-#'  make up the conditioning set for the conditional density estimate.
+#'  make up the conditioning set for the density estimate. For estimation of a
+#'  marginal density, specify a constant \code{numeric} vector or \code{NULL}.
 #' @param wts A \code{numeric} vector of observation-level weights. The default
 #'  is to weight all observations equally.
 #' @param grid_type A \code{character} indicating the strategy to be used in
@@ -136,18 +150,34 @@ cv_haldensify <- function(fold, long_data, wts = rep(1, nrow(long_data)),
 #'  cross-validation will be used to select the optimal binning strategy.
 #' @param n_bins This \code{numeric} value indicates the number(s) of bins into
 #'  which the support of \code{A} is to be divided. As with \code{grid_type},
-#'  multiple values may be specified, in which case a cross-validation selector
-#'  will be used to choose the optimal number of bins. In fact, the default
-#'  uses a cross-validation selector to choose between 10 and 25 bins.
+#'  multiple values may be specified, in which case cross-validation will be
+#'  used to choose the optimal number of bins. The default sets the candidate
+#'  choices of the number of bins based on heuristics tested in simulation.
 #' @param cv_folds A \code{numeric} indicating the number of cross-validation
 #'  folds to be used in fitting the sequence of HAL conditional density models.
 #' @param lambda_seq A \code{numeric} sequence of values of the regularization
-#'  parameter of Lasso regression; passed to \code{\link[hal9001]{fit_hal}}.
-#' @param use_future A \code{logical} indicating whether to attempt to use
-#'  parallelization based on \pkg{future} and \pkg{future.apply}. If set to
-#'  \code{TRUE}, \code{\link[future.apply]{future_mapply}} will be used in
-#'  place of \code{mapply}. When set to \code{TRUE}, a parallelization scheme
-#'  must be specified externally by a call to \code{\link[future]{plan}}.
+#'  parameter of Lasso regression; passed to \code{\link[hal9001]{fit_hal}} via
+#'  its argument \code{lambda}, itself passed to \code{\link[glmnet]{glmnet}}.
+#' @param smoothness_orders A \code{integer} indicating the smoothness of the
+#'  HAL basis functions; passed to \code{\link[hal9001]{fit_hal}}. The default
+#'  is set to zero, for indicator basis functions.
+#' @param hal_basis_list A \code{list} consisting of a preconstructed set of
+#'  HAL basis functions, as produced by \code{\link[hal9001]{fit_hal}}. The
+#'  default of \code{NULL} results in creating such a set of basis functions.
+#'  When specified, this is passed directly to the HAL model fitted upon the
+#'  augmented (repeated measures) data structure, resulting in a much lowered
+#'  computational cost. This is useful, for example, in fitting HAL conditional
+#'  density estimates with external cross-validation or bootstrap samples.
+#' @param ... Additional (optional) arguments of \code{\link[hal9001]{fit_hal}}
+#'  that may be used to control fitting of the HAL regression model. Possible
+#'  choices include \code{use_min}, \code{reduce_basis}, \code{return_lasso},
+#'  and \code{return_x_basis}, but this list is not exhaustive. Consult the
+#'  documentation of \code{\link[hal9001]{fit_hal}} for complete details.
+#'
+#' @note Parallel evaluation of the cross-validation procedure to select tuning
+#'  parameters for density estimation may be invoked via the framework exposed
+#'  in the \pkg{future} ecosystem. Specifically, set \code{\link[future]{plan}}
+#'  for \code{\link[future.apply]{future_mapply}} to be used internally.
 #'
 #' @importFrom data.table ":="
 #' @importFrom future.apply future_mapply
@@ -164,22 +194,34 @@ cv_haldensify <- function(fold, long_data, wts = rep(1, nrow(long_data)),
 #'
 #' @examples
 #' # simulate data: W ~ U[-4, 4] and A|W ~ N(mu = W, sd = 0.5)
+#' set.seed(429153)
 #' n_train <- 50
 #' w <- runif(n_train, -4, 4)
 #' a <- rnorm(n_train, w, 0.5)
 #' # learn relationship A|W using HAL-based density estimation procedure
-#' mod_haldensify <- haldensify(
-#'   A = a, W = w, n_bins = 3,
-#'   lambda_seq = exp(seq(-1, -10, length = 50))
+#' haldensify_fit <- haldensify(
+#'   A = a, W = w, n_bins = 10L, lambda_seq = exp(seq(-1, -10, length = 100)),
+#'   # the following arguments are passed to hal9001::fit_hal()
+#'   max_degree = 3, reduce_basis = 1 / sqrt(length(a))
 #' )
-haldensify <- function(A,
-                       W,
+haldensify <- function(A, W,
                        wts = rep(1, length(A)),
                        grid_type = "equal_range",
-                       n_bins = c(10, 25),
-                       cv_folds = 5,
-                       lambda_seq = exp(seq(-1, -13, length = 1000)),
-                       use_future = FALSE) {
+                       n_bins = round(c(0.5, 1, 1.5, 2) * sqrt(length(A))),
+                       cv_folds = 5L,
+                       lambda_seq = exp(seq(-1, -13, length = 1000L)),
+                       smoothness_orders = 0L,
+                       hal_basis_list = NULL,
+                       ...) {
+  # capture dot arguments to hal9001::fit_hal()
+  fit_hal_args <- list(...)
+
+  # if W is set to NULL, create a constant conditioning set
+  # NOTE: this essentially recovers the marginal density of A
+  if (is.null(W)) {
+    W <- rep(1, length(A))
+  }
+
   # run CV-HAL for all combinations of n_bins and grid_type
   tune_grid <- expand.grid(
     grid_type = grid_type, n_bins = n_bins,
@@ -187,72 +229,61 @@ haldensify <- function(A,
   )
 
   # run procedure to select tuning parameters via cross-validation
-  if (use_future) {
-    select_out <- future.apply::future_mapply(
-      FUN = fit_haldensify,
-      grid_type = tune_grid$grid_type,
-      n_bins = tune_grid$n_bins,
-      MoreArgs = list(
-        A = A, W = W, wts = wts,
-        cv_folds = cv_folds,
-        lambda_seq = lambda_seq
-      ),
-      SIMPLIFY = FALSE,
-      future.seed = TRUE
-    )
-  } else {
-    select_out <- mapply(
-      FUN = fit_haldensify,
-      grid_type = tune_grid$grid_type,
-      n_bins = tune_grid$n_bins,
-      MoreArgs = list(
-        A = A, W = W, wts = wts,
-        cv_folds = cv_folds,
-        lambda_seq = lambda_seq
-      ),
-      SIMPLIFY = FALSE
-    )
-  }
+  # NOTE: even when the number of bins and discretization technique are fixed,
+  #       this step is still required to produce a CV-selected choice of lambda
+  select_out <- future.apply::future_mapply(
+    FUN = fit_haldensify,
+    grid_type = tune_grid$grid_type,
+    n_bins = tune_grid$n_bins,
+    MoreArgs = list(
+      A = A, W = W, wts = wts,
+      cv_folds = cv_folds,
+      lambda_seq = lambda_seq,
+      smoothness_orders = smoothness_orders,
+      ...
+    ),
+    SIMPLIFY = FALSE,
+    future.seed = TRUE
+  )
 
   # extract n_bins/grid_type index that is empirical loss minimizer
   emp_risk_per_lambda <- lapply(select_out, `[[`, "emp_risks")
   min_loss_idx <- lapply(emp_risk_per_lambda, which.min)
   min_risk <- lapply(emp_risk_per_lambda, min)
-  tune_select_params <- tune_grid[which.min(min_risk), , drop = FALSE]
-  tune_select_fits <- select_out[[which.min(min_risk)]]
-
-
-  # get index of CV-selected lambda; subset sequence to that + smaller lambdas
-  lambda_selected_idx <- tune_select_fits$lambda_loss_min_idx
-  lambda_seq_usm <- lambda_seq[lambda_seq <= lambda_seq[lambda_selected_idx]]
+  cv_selected_params <- tune_grid[which.min(min_risk), , drop = FALSE]
+  cv_selected_fits <- select_out[[which.min(min_risk)]]
+  cv_selected_fits$density_pred <- NULL
 
   # re-format input data into long hazards structure
   reformatted_output <- format_long_hazards(
     A = A, W = W, wts = wts,
-    grid_type = tune_select_params$grid_type,
-    n_bins = tune_select_params$n_bins
+    grid_type = cv_selected_params$grid_type,
+    n_bins = cv_selected_params$n_bins
   )
   long_data <- reformatted_output$data
   breakpoints <- reformatted_output$breaks
   bin_sizes <- reformatted_output$bin_length
 
-  # extract weights from long format data structure
-  wts_long <- long_data$wts
-  long_data[, wts := NULL]
-
-  # fit a HAL regression on the full data set with the CV-selected lambda
-  hal_fit <- hal9001::fit_hal(
-    X = as.matrix(long_data[, -c(1, 2)]),
-    Y = as.numeric(long_data$in_bin),
-    max_degree = NULL,
-    fit_type = "glmnet",
-    family = "binomial",
-    lambda = lambda_seq_usm,
-    cv_select = FALSE,
-    standardize = FALSE, # passed to glmnet
-    weights = wts_long, # passed to glmnet
-    yolo = FALSE
-  )
+  # fit a HAL regression on the full data set across a sequence in lambda
+  # NOTE: no sample-splitting since there's no need to select among any of the
+  #       tuning parameters -- advantage: simplifies working with re-sampled
+  #       data (bootstrap); disadvantage: non-sample-split nuisance estimates
+  if (!any(grepl("fit_control", names(fit_hal_args)))) {
+    fit_hal_args$fit_control <- list(
+      cv_select = FALSE, weights = as.numeric(long_data$wts), n_folds = 1
+    )
+  } else {
+    fit_hal_args$fit_control$cv_select <- FALSE
+    fit_hal_args$fit_control$weights <- as.numeric(long_data$wts)
+    fit_hal_args$fit_control$n_folds <- 1L
+  }
+  fit_hal_args$X <- as.matrix(long_data[, -c("obs_id", "in_bin", "wts")])
+  fit_hal_args$Y <- as.numeric(long_data$in_bin)
+  fit_hal_args$basis_list <- hal_basis_list
+  fit_hal_args$family <- "binomial"
+  fit_hal_args$lambda <- lambda_seq
+  fit_hal_args$smoothness_orders <- smoothness_orders
+  hal_fit <- do.call(hal9001::fit_hal, fit_hal_args)
 
   # construct output
   out <- list(
@@ -260,9 +291,9 @@ haldensify <- function(A,
     breaks = breakpoints,
     bin_sizes = bin_sizes,
     range_a = range(A),
-    grid_type_tune_opt = tune_select_params$grid_type,
-    n_bins_tune_opt = tune_select_params$n_bins,
-    cv_hal_fits_tune_opt = tune_select_fits
+    grid_type_cvselect = cv_selected_params$grid_type,
+    n_bins_cvselect = cv_selected_params$n_bins,
+    cv_tuning_results = cv_selected_fits
   )
   class(out) <- "haldensify"
   return(out)
@@ -270,9 +301,9 @@ haldensify <- function(A,
 
 ###############################################################################
 
-#' Fit conditional density estimation for a sequence of HAL models
+#' Fit Conditional Density Estimation for a Sequence of HAL Models
 #'
-#' @details Estimation of the conditional density A|W via a cross-validated
+#' @details Estimation of the conditional density of A|W via a cross-validated
 #'  highly adaptive lasso, used to estimate the conditional hazard of failure
 #'  in a given bin over the support of A.
 #'
@@ -289,11 +320,22 @@ haldensify <- function(A,
 #'  bin has the same number of observations, use \code{"equal_mass"}; consult
 #'  the documentation of \code{\link[ggplot2]{cut_number}} for details.
 #' @param n_bins This \code{numeric} value indicates the number(s) of bins into
-#'  which the support of \code{A} is to be divided.
+#'  which the support of \code{A} is to be divided. As with \code{grid_type},
+#'  multiple values may be specified, in which case cross-validation will be
+#'  used to choose the optimal number of bins. The default sets the candidate
+#'  choices of the number of bins based on heuristics tested in simulation.
 #' @param cv_folds A \code{numeric} indicating the number of cross-validation
 #'  folds to be used in fitting the sequence of HAL conditional density models.
 #' @param lambda_seq A \code{numeric} sequence of values of the regularization
 #'  parameter of Lasso regression; passed to \code{\link[hal9001]{fit_hal}}.
+#' @param smoothness_orders A \code{integer} indicating the smoothness of the
+#'  HAL basis functions; passed to \code{\link[hal9001]{fit_hal}}. The default
+#'  is set to zero, for indicator basis functions.
+#' @param ... Additional (optional) arguments of \code{\link[hal9001]{fit_hal}}
+#'  that may be used to control fitting of the HAL regression model. Possible
+#'  choices include \code{use_min}, \code{reduce_basis}, \code{return_lasso},
+#'  and \code{return_x_basis}, but this list is not exhaustive. Consult the
+#'  documentation of \code{\link[hal9001]{fit_hal}} for complete details.
 #'
 #' @importFrom data.table ":="
 #' @importFrom matrixStats colMeans2
@@ -312,16 +354,22 @@ haldensify <- function(A,
 #' w <- runif(n_train, -4, 4)
 #' a <- rnorm(n_train, w, 0.5)
 #' # fit cross-validated HAL-based density estimator of A|W
-#' fit_cv_haldensify <- fit_haldensify(
-#'   A = a, W = w, n_bins = 3,
-#'   lambda_seq = exp(seq(-1, -10, length = 50))
+#' haldensify_cvfit <- fit_haldensify(
+#'   A = a, W = w, n_bins = 10L, lambda_seq = exp(seq(-1, -10, length = 100)),
+#'   # the following arguments are passed to hal9001::fit_hal()
+#'   max_degree = 3, reduce_basis = 1 / sqrt(length(a))
 #' )
 fit_haldensify <- function(A, W,
                            wts = rep(1, length(A)),
                            grid_type = "equal_range",
-                           n_bins = 20,
-                           cv_folds = 5,
-                           lambda_seq = exp(seq(-1, -13, length = 1000))) {
+                           n_bins = round(c(0.5, 1, 1.5, 2) * sqrt(length(A))),
+                           cv_folds = 5L,
+                           lambda_seq = exp(seq(-1, -13, length = 1000L)),
+                           smoothness_orders = 0L,
+                           ...) {
+  # capture dot arguments for reference
+  dot_args <- list(...)
+
   # re-format input data into long hazards structure
   reformatted_output <- format_long_hazards(
     A = A, W = W, wts = wts,
@@ -347,6 +395,8 @@ fit_haldensify <- function(A, W,
     long_data = long_data,
     wts = wts_long,
     lambda_seq = lambda_seq,
+    smoothness_orders = smoothness_orders,
+    ...,
     use_future = FALSE,
     .combine = FALSE
   )

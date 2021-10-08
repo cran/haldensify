@@ -2,16 +2,18 @@
 % Please edit documentation in R/haldensify.R
 \name{fit_haldensify}
 \alias{fit_haldensify}
-\title{Fit conditional density estimation for a sequence of HAL models}
+\title{Fit Conditional Density Estimation for a Sequence of HAL Models}
 \usage{
 fit_haldensify(
   A,
   W,
   wts = rep(1, length(A)),
   grid_type = "equal_range",
-  n_bins = 20,
-  cv_folds = 5,
-  lambda_seq = exp(seq(-1, -13, length = 1000))
+  n_bins = round(c(0.5, 1, 1.5, 2) * sqrt(length(A))),
+  cv_folds = 5L,
+  lambda_seq = exp(seq(-1, -13, length = 1000L)),
+  smoothness_orders = 0L,
+  ...
 )
 }
 \arguments{
@@ -32,13 +34,26 @@ bin has the same number of observations, use \code{"equal_mass"}; consult
 the documentation of \code{\link[ggplot2]{cut_number}} for details.}
 
 \item{n_bins}{This \code{numeric} value indicates the number(s) of bins into
-which the support of \code{A} is to be divided.}
+which the support of \code{A} is to be divided. As with \code{grid_type},
+multiple values may be specified, in which case cross-validation will be
+used to choose the optimal number of bins. The default sets the candidate
+choices of the number of bins based on heuristics tested in simulation.}
 
 \item{cv_folds}{A \code{numeric} indicating the number of cross-validation
 folds to be used in fitting the sequence of HAL conditional density models.}
 
 \item{lambda_seq}{A \code{numeric} sequence of values of the regularization
 parameter of Lasso regression; passed to \code{\link[hal9001]{fit_hal}}.}
+
+\item{smoothness_orders}{A \code{integer} indicating the smoothness of the
+HAL basis functions; passed to \code{\link[hal9001]{fit_hal}}. The default
+is set to zero, for indicator basis functions.}
+
+\item{...}{Additional (optional) arguments of \code{\link[hal9001]{fit_hal}}
+that may be used to control fitting of the HAL regression model. Possible
+choices include \code{use_min}, \code{reduce_basis}, \code{return_lasso},
+and \code{return_x_basis}, but this list is not exhaustive. Consult the
+documentation of \code{\link[hal9001]{fit_hal}} for complete details.}
 }
 \value{
 A \code{list}, containing density predictions for the sequence of
@@ -47,10 +62,10 @@ A \code{list}, containing density predictions for the sequence of
  sequence of fitted HAL models.
 }
 \description{
-Fit conditional density estimation for a sequence of HAL models
+Fit Conditional Density Estimation for a Sequence of HAL Models
 }
 \details{
-Estimation of the conditional density A|W via a cross-validated
+Estimation of the conditional density of A|W via a cross-validated
  highly adaptive lasso, used to estimate the conditional hazard of failure
  in a given bin over the support of A.
 }
@@ -60,8 +75,9 @@ n_train <- 50
 w <- runif(n_train, -4, 4)
 a <- rnorm(n_train, w, 0.5)
 # fit cross-validated HAL-based density estimator of A|W
-fit_cv_haldensify <- fit_haldensify(
-  A = a, W = w, n_bins = 3,
-  lambda_seq = exp(seq(-1, -10, length = 50))
+haldensify_cvfit <- fit_haldensify(
+  A = a, W = w, n_bins = 10L, lambda_seq = exp(seq(-1, -10, length = 100)),
+  # the following arguments are passed to hal9001::fit_hal()
+  max_degree = 3, reduce_basis = 1 / sqrt(length(a))
 )
 }

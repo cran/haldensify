@@ -2,9 +2,17 @@
 % Please edit documentation in R/predict.R
 \name{predict.haldensify}
 \alias{predict.haldensify}
-\title{Prediction method for HAL-based conditional density estimation}
+\title{Prediction Method for HAL Conditional Density Estimation}
 \usage{
-\method{predict}{haldensify}(object, ..., new_A, new_W, cv_select = TRUE)
+\method{predict}{haldensify}(
+  object,
+  ...,
+  new_A,
+  new_W,
+  trim = TRUE,
+  trim_min = NULL,
+  lambda_select = c("cv", "undersmooth", "all")
+)
 }
 \arguments{
 \item{object}{An object of class \code{\link{haldensify}}, containing the
@@ -20,19 +28,39 @@ which a conditional density estimate is to be generated.}
 values of baseline covariates (potential confounders) for the conditioning
 set of the observed values \code{A}.}
 
-\item{cv_select}{A \code{logical} indicating whether to return the predicted
-density for the value of the regularization parameter selected by global
-cross-validation. The default is \code{TRUE}. When set to \code{FALSE}, a
-matrix of predicted densities is returned, with each column corresponding
-to a value of the regularization parameter less than or equal to the choice
-made by the global cross-validation selector.}
+\item{trim}{A \code{logical} indicating whether estimates of the conditional
+density below the value indicated in \code{trim_min} should be truncated.
+The default value of \code{TRUE} enforces truncation of any values below
+the cutoff specified in \code{trim_min} and similarly truncates predictions
+for any of \code{new_A} falling outside of the training support.}
+
+\item{trim_min}{A \code{numeric} indicating the minimum allowed value of the
+resultant density predictions. Any predicted density values below this
+tolerance threshold are set to the indicated minimum. The default is to use
+a scaled inverse square root of the sample size of the prediction set,
+i.e., 5/sqrt(n)/log(n) (another notable choice is 1/sqrt(n)). If there are
+observations in the prediction set with values of \code{new_A} outside of
+the support of the training set (i.e., provided in the argument \code{A} to
+\code{\link{haldensify}}), their predictions are similarly truncated.}
+
+\item{lambda_select}{A \code{character} indicating whether to return the
+predicted density for the value of the regularization parameter chosen by
+the global cross-validation selector or whether to return an undersmoothed
+sequence (which starts with the cross-validation selector's choice but also
+includes all values in the sequence that are less restrictive). The default
+is \code{"cv"} for the global cross-validation selector. Setting the choice
+to \code{"undersmooth"} returns a matrix of predicted densities, with each
+column corresponding to a value of the regularization parameter less than
+or equal to the choice made by the global cross-validation selector. When
+\code{"all"} is set, predictions are returned for the full sequence of the
+regularization parameter on which the HAL model \code{object} was fitted.}
 }
 \value{
 A \code{numeric} vector of predicted conditional density values from
  a fitted \code{haldensify} object.
 }
 \description{
-Prediction method for HAL-based conditional density estimation
+Prediction Method for HAL Conditional Density Estimation
 }
 \details{
 Method for computing and extracting predictions of the conditional
@@ -45,12 +73,13 @@ n_train <- 50
 w <- runif(n_train, -4, 4)
 a <- rnorm(n_train, w, 0.5)
 # HAL-based density estimator of A|W
-mod_haldensify <- haldensify(
-  A = a, W = w, n_bins = 3,
-  lambda_seq = exp(seq(-1, -10, length = 50))
+haldensify_fit <- haldensify(
+  A = a, W = w, n_bins = 10L, lambda_seq = exp(seq(-1, -10, length = 100)),
+  # the following arguments are passed to hal9001::fit_hal()
+  max_degree = 3, reduce_basis = 1 / sqrt(length(a))
 )
 # predictions to recover conditional density of A|W
 new_a <- seq(-4, 4, by = 0.1)
 new_w <- rep(0, length(new_a))
-pred_dens <- predict(mod_haldensify, new_A = new_a, new_W = new_w)
+pred_dens <- predict(haldensify_fit, new_A = new_a, new_W = new_w)
 }
