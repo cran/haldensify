@@ -1,4 +1,4 @@
-0376b4adc13e3e28fa5a1d6487652121 *DESCRIPTION
+318db63c772a1b454d9e94137a4db2b8 *DESCRIPTION
 8801dcd5f201e2cba872a0c3da32c4cc *LICENSE
 4a9af86df1e7f81b3d9493bcc55df02b *NAMESPACE
 9dced5008004a898281a372e3e5673bf *NEWS.md
@@ -12,14 +12,14 @@ c08bb21ac7b5ba91ac824f0104e21662 *R/selector_dcar.R
 452ac53963c8c52c71b3cbd8a39c652b *R/selector_plateau.R
 17767ea45044fd2a9ceabddf5dc1066c *R/utils.R
 7ddcd0cd09502c04f4a037a5eccfc907 *R/zzz.R
-83ec89251d25cf13a711e39590955ccf *README.md
-b8fd03b5d28ef0c0d5aa8b47dcf57796 *build/partial.rdb
+e0bef605633743ca97fd89ccc4dc789f *README.md
+32b6320e49a4a4852dfbfc2b7f60cc34 *build/partial.rdb
 8e760bbc4ad9109846d3b7e396b37482 *build/vignette.rds
-2425666bd9e7ca0a3ae1e411de5c4bd0 *inst/CITATION
+d3e17a834db62b7b4651d0685b76a420 *inst/CITATION
 6ee11c522cf2c3d0d472869144aaaa1a *inst/REFERENCES.bib
 ad31d2db9b98adcad8722088a1b11049 *inst/doc/intro_haldensify.R
 487fae04087f82f18f616ea8dbb687e7 *inst/doc/intro_haldensify.Rmd
-589f07a950fea3a6fd839dd05da6d1e4 *inst/doc/intro_haldensify.html
+32b8be6da413cb88f3ea0719375309e8 *inst/doc/intro_haldensify.html
 9befc0b3d92508f82fcc9d2ade92e1a4 *man/confint.ipw_haldensify.Rd
 8f1367307be0fdc8f8e50beb32d50523 *man/cv_haldensify.Rd
 d4a66235238c64ca2096b662874f10e6 *man/dcar_selector.Rd
